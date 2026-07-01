@@ -1,3 +1,0 @@
-env native;
-
-printf("Hello world");
