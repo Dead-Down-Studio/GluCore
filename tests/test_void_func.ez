@@ -1,7 +1,0 @@
-env native;
-
-void printMessage() {
-    printf("Hello from void function");
-}
-
-printMessage();

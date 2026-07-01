@@ -1,5 +1,0 @@
-env native;
-friend pymath: python as py;
-
-int result = py.add(3, 5);
-print("result:", result);

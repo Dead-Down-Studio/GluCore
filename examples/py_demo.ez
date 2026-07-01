@@ -1,4 +1,0 @@
-env native;
-friend pymath : python as py;
-
-py.add(3, 5);

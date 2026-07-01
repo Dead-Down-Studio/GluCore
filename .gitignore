@@ -1,45 +1,76 @@
-# Ignore node_modules directory
-node_modules/
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
 
-# Ignore Python virtual environment
-venv/
-# Ignore build outputs
-build/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg-link
 dist/
+build/
+.eggs/
+*.whl
+*.tar.gz
 
-# Ignore temporary files
-*.log
-*.tmp
-*.swp
-*.bak
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+!.mvn/wrapper/maven-wrapper.jar
 
-# Ignore compiled files
+# C/C++
 *.o
-*.out
+*.so
+*.so.*
+*.dylib
+*.dll
+*.a
+*.lib
 *.exe
-*.plan
 
-# Ignore python environment
-.venv/
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
 
-# Ignore Test files
-test/
+# Conan
+conandeps.yml
+conan.lock
 
-# Ignore Visual Studio Code settings
+# Build artifacts
+cpp_engine/build/
+examples/cpp_engine/build/
+examples/java_renderer/build/
+adapters/java/target/
+scripts/engine.cpp
+scripts/engine.so
+scripts/engine.dylib
+
+# IDE / editor
 .vscode/
-
-.antlr/
-
-.ezenv/
-.ezbuild/
-
-# Ignore OS-specific files
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
-README.md
 
+# Logs
+*.log
+/tmp/
 
-extensions/
+# Nix
+.direnv/
+.envrc
+result
 
-WIKI_UPDATE_CONTEXT.txt
-docs/*
+# Others
+publish.sh

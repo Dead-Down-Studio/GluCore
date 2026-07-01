@@ -1,8 +1,0 @@
-env native;
-friend native_math: cpp as m;
-
-int i = m.sum9(1, 2, 3, 4, 5, 6, 7, 8, 9);
-float f = m.sum9f(1.0, 2, 3, 4, 5, 6, 7, 8, 9);
-
-printf("sum9 int = %lld\n", i);
-printf("sum9 float = %.1f\n", f);

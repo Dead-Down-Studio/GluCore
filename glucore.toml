@@ -1,0 +1,49 @@
+# glucore.toml — GluCore manifest
+#
+# Per Constraint 1, this file contains TOPOLOGY ONLY — no type signatures.
+# Types come from the native Rust function signatures, parsed by the macro
+# at compile time. Adding a [types] section here is forbidden.
+
+[modules]
+physics = "physics"
+# cpp_engine is a C++ ARTIFACT module (Task 7): dlopen'd into the same process,
+# presenting the SAME glucore_module_info() contract as a Rust module. The
+# loader finds it via target/release/libcpp_engine.so (a symlink to the
+# C++ build output) so no glucore.py changes are needed.
+cpp_engine = "cpp_engine"
+# java_renderer is a PROCESS module (Task 8, 9): runs in a separate JVM and
+# communicates over a Unix domain socket. glucore.py's load_process_module
+# spawns it and registers it via glucore_register_process_module.
+java_renderer = "java_renderer"
+
+# [links] declares which modules may call which other modules.
+# Format: caller = ["callee1", "callee2", ...]
+#
+# Python is the implicit root caller. Task 5 requires Python to register its
+# identity ("python") before making any call, and the core checks the
+# caller→callee pair against this table before dispatching.
+#
+# Task 7 multi-caller topology:
+#   python  -> [physics, cpp_engine, java_renderer]  (python may call all three)
+#   physics -> [cpp_engine]            (Rust physics calls INTO C++ cpp_engine)
+#   cpp_engine -> [java_renderer]      (Task 9: C++ calls INTO Java via IPC)
+#
+# Task 9 mesh test (Part 1):
+#   python  -> physics            SUCCEED
+#   physics -> cpp_engine         SUCCEED (nested Rust->C++)
+#   cpp_engine -> java_renderer   SUCCEED (new: C++->Java via IPC)
+#   cpp_engine -> physics         DENY    (still denied, Part 0a verification)
+#
+# Task 10 (Java initiates outward):
+#   java_renderer -> physics      SUCCEED (Java calls Rust via CALLBACK_CALL)
+#   java_renderer -> java_renderer DENY    (self-reentrant, denied cleanly)
+#   java_renderer -> cpp_engine   DENY    (undeclared, denied cleanly)
+#
+# Part 0c (byte-counter evidence) — when an undeclared caller attempts
+# java_renderer, the Rust core MUST refuse BEFORE sending anything over the
+# socket. The Java side's byte-read counter stays at 0 in that case.
+[links]
+python = ["physics", "cpp_engine", "java_renderer"]
+physics = ["cpp_engine"]
+cpp_engine = ["java_renderer"]
+java_renderer = ["physics"]

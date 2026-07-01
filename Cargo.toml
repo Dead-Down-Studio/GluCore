@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = ["core", "adapters/rust", "examples/physics"]
+
+[profile.release]
+panic = "unwind"

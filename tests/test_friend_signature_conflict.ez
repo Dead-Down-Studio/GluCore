@@ -1,6 +1,0 @@
-env native;
-friend native_math: cpp as m;
-
-int a = m.add(1, 2);
-float b = m.add(1.0, 2);
-printf("a=%lld b=%.1f\n", a, b);
