@@ -4,8 +4,8 @@ version = "0.2.0"
 edition = "2021"
 description = "Proc-macro for GluCore — #[glucore::export] auto-registers Rust functions"
 license = "MIT"
-repository = "https://github.com/glucore/glucore"
-homepage = "https://github.com/glucore/glucore"
+repository = "https://github.com/Dead-down-studio/glucore"
+homepage = "https://github.com/Dead-down-studio/glucore"
 keywords = ["ffi", "glucore", "proc-macro", "code-generation"]
 categories = ["development-tools::procedural-macro-helpers"]
 

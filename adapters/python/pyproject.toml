@@ -10,7 +10,8 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
-    {name = "GluCore Project"},
+    {name = "Dead-down-studio"},
+    {name = " RedLeZ"}
 ]
 keywords = ["ffi", "ipc", "cross-language", "runtime", "adapter"]
 classifiers = [
@@ -24,9 +25,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/glucore/glucore"
-Documentation = "https://github.com/glucore/glucore/tree/main/docs"
-Repository = "https://github.com/glucore/glucore"
+Homepage = "https://github.com/dead-down-studio/glucore"
+Documentation = "https://github.com/Dead-down-studio/glucore/tree/main/docs"
+Repository = "https://github.com/Dead-down-studio/glucore"
 
 [tool.setuptools]
 packages = ["glucore"]

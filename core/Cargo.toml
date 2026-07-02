@@ -4,9 +4,9 @@ version = "0.2.0"
 edition = "2021"
 description = "GluCore core runtime — language-agnostic call routing, link enforcement, IPC transport"
 license = "MIT"
-repository = "https://github.com/glucore/glucore"
-homepage = "https://github.com/glucore/glucore"
-documentation = "https://github.com/glucore/glucore/tree/main/docs"
+repository = "https://github.com/dead-down-studio/glucore"
+homepage = "https://github.com/dead-down-studio/glucore"
+documentation = "https://github.com/Dead-down-studio/glucore/tree/main/docs"
 keywords = ["ffi", "ipc", "cross-language", "runtime", "routing"]
 categories = ["development-tools::ffi", "api-bindings"]
 

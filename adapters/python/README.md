@@ -1,6 +1,6 @@
 # glucore (Python adapter)
 
-Python adapter for [GluCore](https://github.com/glucore/glucore) — a
+Python adapter for [GluCore](https://github.com/dead-down-studio/glucore) — a
 language-agnostic runtime coordination layer.
 
 ## Install

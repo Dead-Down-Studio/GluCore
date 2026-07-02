@@ -15,8 +15,8 @@ class GlucoreCppConan(ConanFile):
     version = "0.2.0"
     description = "C++ adapter for GluCore — language-agnostic runtime coordination"
     license = "MIT"
-    url = "https://github.com/glucore/glucore"
-    homepage = "https://github.com/glucore/glucore"
+    url = "https://github.com/dead-down-studio/glucore"
+    homepage = "https://github.com/Dead-down-studio/glucore"
     topics = ("ffi", "ipc", "cross-language", "runtime", "adapter")
     settings = "os", "compiler", "build_type", "arch"
 
