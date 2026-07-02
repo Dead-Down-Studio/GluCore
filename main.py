@@ -14,7 +14,7 @@ def main():
     result = physics.calculate_force(10.0, 9.8) 
    
     print(f"Physics.calculate_force(10.0, 9.8) = {result}")
-    print(physics.greet("Nigga"))
+    print(physics.greet("Hii, From Rust"))
 
 
 if __name__ == "__main__":
