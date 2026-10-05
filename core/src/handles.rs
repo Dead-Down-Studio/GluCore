@@ -19,6 +19,11 @@ struct RegistryState {
     export_index: HashMap<usize, HashMap<Vec<u8>, usize>>,
 }
 
+// SAFETY: module pointers are process-lifetime registration data owned by
+// adapters/modules; this state only stores and reads those immutable pointers.
+unsafe impl Send for RegistryState {}
+unsafe impl Sync for RegistryState {}
+
 static REGISTRY: OnceLock<RwLock<RegistryState>> = OnceLock::new();
 
 fn registry_state() -> &'static RwLock<RegistryState> {

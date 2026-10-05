@@ -12,7 +12,6 @@
 //   0x03 CALLBACK_RESULT  (Rust → Process)  Task 10: Rust's answer to CALLBACK_CALL
 
 use crate::types::*;
-use std::os::raw::c_char;
 
 /// Wire-protocol constants.
 pub const WIRE_PROTOCOL_VERSION_MAJOR: u16 = 1;

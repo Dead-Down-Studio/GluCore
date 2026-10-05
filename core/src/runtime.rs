@@ -32,6 +32,11 @@ pub(crate) struct IpcExportMeta {
     pub sig: GluSignatureFFI,
 }
 
+// SAFETY: IPC metadata is immutable after insertion; raw pointers inside
+// GluSignatureFFI reference leaked registration memory with process lifetime.
+unsafe impl Send for IpcExportMeta {}
+unsafe impl Sync for IpcExportMeta {}
+
 #[cfg(unix)]
 #[derive(Default)]
 struct IpcState {
@@ -39,6 +44,9 @@ struct IpcState {
     module_sockets: HashMap<Vec<u8>, i32>,
     module_base_idx: HashMap<Vec<u8>, usize>,
 }
+
+unsafe impl Send for IpcState {}
+unsafe impl Sync for IpcState {}
 
 #[cfg(unix)]
 static IPC_STATE: OnceLock<RwLock<IpcState>> = OnceLock::new();
@@ -324,7 +332,6 @@ pub extern "C" fn glucore_register_process_module(
     let mut entries: Vec<GluExportEntry> = Vec::new();
     let mut name_storage: Vec<CString> = Vec::new();
     for (i, (fn_name, sig)) in reg.exports.iter().enumerate() {
-        let export_idx = base_idx + i;
         let wrapper = get_ipc_wrapper();
         name_storage.push(CString::new(fn_name.as_str()).unwrap());
         let meta = IpcExportMeta {
@@ -350,7 +357,7 @@ pub extern "C" fn glucore_register_process_module(
         entries: entries.as_ptr(),
         count: entries.len(),
     };
-    unsafe { crate::handles::glucore_register_module(glu_mod) };
+    crate::handles::glucore_register_module(glu_mod);
 
     state.module_sockets.insert(module_name.as_bytes().to_vec(), sock_fd);
     state.module_base_idx.insert(module_name.as_bytes().to_vec(), base_idx);
