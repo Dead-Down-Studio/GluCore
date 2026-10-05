@@ -15,6 +15,9 @@ use crate::types::*;
 use std::os::raw::c_char;
 
 /// Wire-protocol constants.
+pub const WIRE_PROTOCOL_VERSION_MAJOR: u16 = 1;
+pub const WIRE_PROTOCOL_VERSION_MINOR: u16 = 0;
+pub const WIRE_PROTOCOL_VERSION_PATCH: u16 = 0;
 pub const MSG_CALL: u8 = 0x00;
 pub const MSG_RESULT: u8 = 0x01;
 pub const MSG_CALLBACK_CALL: u8 = 0x02;
@@ -122,7 +125,10 @@ pub(crate) fn decode_result(data: &[u8]) -> Result<GluResult, String> {
         return Err(format!("unexpected msg_type {:02x}", data[0]));
     }
     let mut off = 1usize;
-    let _payload_len = read_u32_le(data, &mut off);
+    let payload_len = read_u32_le(data, &mut off) as usize;
+    if data.len().saturating_sub(off) < payload_len {
+        return Err("result payload truncated".into());
+    }
     let status = data[off];
     off += 1;
     if status == 0 {
@@ -188,7 +194,10 @@ pub(crate) fn decode_callback_call(data: &[u8]) -> Result<CallbackCall, String> 
         return Err(format!("expected CALLBACK_CALL (0x02), got {:02x}", data[0]));
     }
     let mut off = 1usize;
-    let _payload_len = read_u32_le(data, &mut off);
+    let payload_len = read_u32_le(data, &mut off) as usize;
+    if data.len().saturating_sub(off) < payload_len {
+        return Err("callback payload truncated".into());
+    }
     let module = std::string::String::from_utf8_lossy(read_len_bytes(data, &mut off)).into_owned();
     let function = std::string::String::from_utf8_lossy(read_len_bytes(data, &mut off)).into_owned();
     let _caller = read_len_bytes(data, &mut off);

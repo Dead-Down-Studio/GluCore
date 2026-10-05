@@ -6,6 +6,20 @@ ensures the C symbol name matches the Rust function name.
 
 ## Core call / dispatch
 
+### Contract versioning
+
+```c
+uint16_t glucore_abi_version_major(void);
+uint16_t glucore_abi_version_minor(void);
+uint16_t glucore_abi_version_patch(void);
+uint16_t glucore_wire_version_major(void);
+uint16_t glucore_wire_version_minor(void);
+uint16_t glucore_wire_version_patch(void);
+```
+
+Report the runtime C-ABI and wire-protocol versions that adapters and
+PROCESS modules must target for compatibility checks.
+
 ### `glucore_call`
 
 ```c
@@ -35,10 +49,8 @@ Set the current caller identity. MUST be called before any
 `glucore_call` — a NULL identity causes `LinkDenied`. Pass NULL to
 clear.
 
-**Note:** This is process-global in v2. A multi-threaded version would
-use thread-local. Modules making nested calls MUST save and restore the
-previous identity (see `CallerGuard` in Rust, manual save/restore in
-C++).
+**Note:** Identity is thread-local and stack-based. Nested calls should
+use `call_as` / `CallerGuard` so caller context is restored reliably.
 
 ## Module registration
 
@@ -73,6 +85,7 @@ Returns 0 on success, negative on failure:
 - `-2`: failed to spawn
 - `-3`: timed out connecting
 - `-4..-7`: registration read/parse failures
+- `-8`: IPC state lock poisoned
 
 **Unix only.** `#[cfg(unix)]`-gated.
 

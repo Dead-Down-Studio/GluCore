@@ -187,6 +187,7 @@ cat <<EOF
     python3 tests/unit/task3_dod.py              # String/Buffer round-trips
     python3 tests/unit/task4_dod.py              # pre-call type validation
     python3 tests/unit/task6a_dod.py             # no RSS leak across 120k calls
+    python3 tests/unit/task11_contract_dod.py    # contract versioning checks
     python3 tests/integration/task5_dod.py       # link-enforcement
     python3 tests/integration/task7_multicaller_dod.py  # multi-caller mesh
     python3 tests/integration/part0a_dod.py      # REAL C++ caller denied
