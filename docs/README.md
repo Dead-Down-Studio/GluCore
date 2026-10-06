@@ -18,6 +18,7 @@ through unrelated material.
 | [08-known-footguns.md](08-known-footguns.md) | The 8 footguns documented in KNOWN_FOOTGUNS.md, with verification templates |
 | [09-api-reference.md](09-api-reference.md) | Every public C ABI function exposed by libglucore_core |
 | [10-examples.md](10-examples.md) | Walk-throughs of every example and DoD test in scripts/ (incl. Task 10) |
+| [11-production-readiness.md](11-production-readiness.md) | Contract versioning, compatibility policy, support matrix |
 
 ## Quick lookup
 
@@ -28,6 +29,7 @@ through unrelated material.
 - "Why is GluCore slower than raw ctypes?" → [07-performance.md](07-performance.md)
 - "What bugs have already bitten this project?" → [08-known-footguns.md](08-known-footguns.md)
 - "What functions does libglucore_core.so export?" → [09-api-reference.md](09-api-reference.md)
+- "What is production-compatible and supported?" → [11-production-readiness.md](11-production-readiness.md)
 
 ## Project layout
 

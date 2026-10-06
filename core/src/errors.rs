@@ -6,7 +6,6 @@
 
 use crate::types::{GluResult, GluStatus, GluValue};
 use std::ffi::CString;
-use std::os::raw::c_char;
 
 impl GluResult {
     pub fn ok(v: GluValue) -> Self {

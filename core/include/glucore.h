@@ -93,6 +93,14 @@ typedef struct GluModule {
 
 /* ---- Core API: call / dispatch ---- */
 
+/* ---- Contract versioning ---- */
+uint16_t glucore_abi_version_major(void);
+uint16_t glucore_abi_version_minor(void);
+uint16_t glucore_abi_version_patch(void);
+uint16_t glucore_wire_version_major(void);
+uint16_t glucore_wire_version_minor(void);
+uint16_t glucore_wire_version_patch(void);
+
 /* Make a cross-module call. The caller identity must be set via
  * glucore_set_caller_identity before calling this. */
 GluResult glucore_call(

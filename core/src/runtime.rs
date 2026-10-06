@@ -12,15 +12,13 @@
 use crate::types::*;
 use crate::fctp;
 use crate::router;
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::c_char;
+use std::sync::{OnceLock, RwLock};
 
 #[cfg(unix)]
 use std::io::{Read, Write};
-#[cfg(unix)]
-use std::os::unix::io::{FromRawFd, AsRawFd};
-#[cfg(unix)]
-use std::os::unix::net::UnixStream;
 
 // --- IPC export metadata (Unix only) ---------------------------------------
 
@@ -34,8 +32,29 @@ pub(crate) struct IpcExportMeta {
     pub sig: GluSignatureFFI,
 }
 
+// SAFETY: IPC metadata is immutable after insertion; raw pointers inside
+// GluSignatureFFI reference leaked registration memory with process lifetime.
+unsafe impl Send for IpcExportMeta {}
+unsafe impl Sync for IpcExportMeta {}
+
 #[cfg(unix)]
-static mut IPC_EXPORTS: Vec<IpcExportMeta> = Vec::new();
+#[derive(Default)]
+struct IpcState {
+    exports: Vec<IpcExportMeta>,
+    module_sockets: HashMap<Vec<u8>, i32>,
+    module_base_idx: HashMap<Vec<u8>, usize>,
+}
+
+unsafe impl Send for IpcState {}
+unsafe impl Sync for IpcState {}
+
+#[cfg(unix)]
+static IPC_STATE: OnceLock<RwLock<IpcState>> = OnceLock::new();
+
+#[cfg(unix)]
+fn ipc_state() -> &'static RwLock<IpcState> {
+    IPC_STATE.get_or_init(|| RwLock::new(IpcState::default()))
+}
 
 /// Thread-local context set by dispatch when about to call an IPC wrapper.
 #[cfg(unix)]
@@ -55,107 +74,84 @@ thread_local! {
 /// See doc/03-wire-protocol.md for the full sequencing rules.
 #[cfg(unix)]
 pub(crate) fn ipc_roundtrip(sock_fd: i32, msg: &[u8]) -> GluResult {
-    unsafe {
-        let mut stream = UnixStream::from_raw_fd(sock_fd);
-        let len_buf = (msg.len() as u32).to_le_bytes();
-        if stream.write_all(&len_buf).is_err() || stream.write_all(msg).is_err() {
-            std::mem::forget(stream);
-            return GluResult::err(GluStatus::Runtime, "IPC write failed");
+    let mut stream = unsafe { crate::transport::IpcStream::from_raw_fd(sock_fd) };
+    let len_buf = (msg.len() as u32).to_le_bytes();
+    if stream.write_all(&len_buf).is_err() || stream.write_all(msg).is_err() {
+        stream.forget();
+        return GluResult::err(GluStatus::Runtime, "ipc_write_failed");
+    }
+    loop {
+        let mut len_arr = [0u8; 4];
+        if stream.read_exact(&mut len_arr).is_err() {
+            stream.forget();
+            return GluResult::err(GluStatus::Runtime, "ipc_read_len_failed");
         }
-        loop {
-            let mut len_arr = [0u8; 4];
-            if stream.read_exact(&mut len_arr).is_err() {
-                std::mem::forget(stream);
-                return GluResult::err(GluStatus::Runtime, "IPC read len failed");
+        let resp_len = u32::from_le_bytes(len_arr) as usize;
+        if resp_len > 16 * 1024 * 1024 {
+            stream.forget();
+            return GluResult::err(GluStatus::Runtime, "ipc_response_too_large");
+        }
+        let mut resp = vec![0u8; resp_len];
+        if stream.read_exact(&mut resp).is_err() {
+            stream.forget();
+            return GluResult::err(GluStatus::Runtime, "ipc_read_body_failed");
+        }
+        if resp.is_empty() {
+            stream.forget();
+            return GluResult::err(GluStatus::Runtime, "ipc_empty_response");
+        }
+        match resp[0] {
+            fctp::MSG_RESULT => {
+                stream.forget();
+                return fctp::decode_result(&resp).unwrap_or_else(|e| {
+                    GluResult::err(GluStatus::Runtime, &format!("ipc_decode_result_failed:{e}"))
+                });
             }
-            let resp_len = u32::from_le_bytes(len_arr) as usize;
-            if resp_len > 16 * 1024 * 1024 {
-                std::mem::forget(stream);
-                return GluResult::err(GluStatus::Runtime, "IPC response too large");
-            }
-            let mut resp = vec![0u8; resp_len];
-            if stream.read_exact(&mut resp).is_err() {
-                std::mem::forget(stream);
-                return GluResult::err(GluStatus::Runtime, "IPC read body failed");
-            }
-            if resp.is_empty() {
-                std::mem::forget(stream);
-                return GluResult::err(GluStatus::Runtime, "empty IPC response");
-            }
-            match resp[0] {
-                fctp::MSG_RESULT => {
-                    std::mem::forget(stream);
-                    return fctp::decode_result(&resp).unwrap_or_else(|e|
-                        GluResult::err(GluStatus::Runtime, &e));
-                }
-                fctp::MSG_CALLBACK_CALL => {
-                    let cb_request = match fctp::decode_callback_call(&resp) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            let err_payload = fctp::encode_callback_result_error(&format!("decode error: {}", e));
-                            let err_len = (err_payload.len() as u32).to_le_bytes();
-                            let _ = stream.write_all(&err_len);
-                            let _ = stream.write_all(&err_payload);
-                            continue;
-                        }
-                    };
-
-                    // Self-reentrancy check: deny java_renderer -> java_renderer cleanly.
-                    if cb_request.module == "java_renderer" {
+            fctp::MSG_CALLBACK_CALL => {
+                let cb_request = match fctp::decode_callback_call(&resp) {
+                    Ok(c) => c,
+                    Err(e) => {
                         let err_payload = fctp::encode_callback_result_error(
-                            "self-reentrant java_renderer -> java_renderer via CALLBACK_CALL denied \
-                             (single-threaded IPC limitation — see Task 10 handoff)"
+                            &format!("callback_decode_error:{e}")
                         );
                         let err_len = (err_payload.len() as u32).to_le_bytes();
                         let _ = stream.write_all(&err_len);
                         let _ = stream.write_all(&err_payload);
                         continue;
                     }
+                };
 
-                    // Save current caller, set to "java_renderer", dispatch, restore.
-                    let prev_caller = {
-                        let ci = &raw const crate::router::CALLER_IDENTITY;
-                        // We can't access CALLER_IDENTITY directly from here because
-                        // it's in the router module. Use the public set/get functions.
-                        // Actually, we need a different approach — use current_caller_bytes
-                        // which is private to router. Let's use the C ABI instead.
-                        std::ffi::CString::new("python").unwrap() // placeholder
-                    };
-                    // The actual save/restore: we call glucore_set_caller_identity
-                    // which is the public C ABI. For the save, we can't read the
-                    // current value via C ABI (no getter), so we assume "python"
-                    // as the outer caller (single-threaded demo convention — same
-                    // as what physics and cpp_engine do).
-                    //
-                    // TODO: add a glucore_get_caller_identity() C ABI function
-                    // for a proper save/restore. For now, the convention is:
-                    // the outer caller is always "python" (set at startup).
-                    let java_caller = CString::new("java_renderer").unwrap();
-                    crate::router::glucore_set_caller_identity(java_caller.as_ptr());
-
-                    let nested_result = crate::router::dispatch(
-                        &cb_request.module,
-                        &cb_request.function,
-                        cb_request.args.as_ptr(),
-                        cb_request.args.len(),
+                if cb_request.module == "java_renderer" {
+                    let err_payload = fctp::encode_callback_result_error(
+                        "callback_self_reentry_denied"
                     );
-
-                    // Restore to "python" (the convention for the outer caller).
-                    let outer = CString::new("python").unwrap();
-                    crate::router::glucore_set_caller_identity(outer.as_ptr());
-
-                    let cb_response = fctp::encode_callback_result(&nested_result);
-                    let cb_len = (cb_response.len() as u32).to_le_bytes();
-                    if stream.write_all(&cb_len).is_err() || stream.write_all(&cb_response).is_err() {
-                        std::mem::forget(stream);
-                        return GluResult::err(GluStatus::Runtime, "IPC write callback result failed");
-                    }
+                    let err_len = (err_payload.len() as u32).to_le_bytes();
+                    let _ = stream.write_all(&err_len);
+                    let _ = stream.write_all(&err_payload);
+                    continue;
                 }
-                other => {
-                    std::mem::forget(stream);
-                    return GluResult::err(GluStatus::Runtime,
-                        &format!("unexpected msg_type {:02x} (expected RESULT=0x01 or CALLBACK_CALL=0x02)", other));
+
+                let _guard = router::CallerGuard::enter("java_renderer");
+                let nested_result = crate::router::dispatch(
+                    &cb_request.module,
+                    &cb_request.function,
+                    cb_request.args.as_ptr(),
+                    cb_request.args.len(),
+                );
+
+                let cb_response = fctp::encode_callback_result(&nested_result);
+                let cb_len = (cb_response.len() as u32).to_le_bytes();
+                if stream.write_all(&cb_len).is_err() || stream.write_all(&cb_response).is_err() {
+                    stream.forget();
+                    return GluResult::err(GluStatus::Runtime, "ipc_write_callback_result_failed");
                 }
+            }
+            other => {
+                stream.forget();
+                return GluResult::err(
+                    GluStatus::Runtime,
+                    &format!("ipc_unexpected_msg_type:{other:02x}"),
+                );
             }
         }
     }
@@ -172,24 +168,21 @@ extern "C" fn ipc_dispatch_wrapper(args: *const GluValue, argc: usize) -> GluRes
     if sock_fd < 0 {
         return GluResult::err(GluStatus::Runtime, "IPC wrapper called without context");
     }
-    let meta = unsafe {
-        let exports = &IPC_EXPORTS;
-        if export_idx >= exports.len() {
-            return GluResult::err(GluStatus::Runtime, "IPC export index out of range");
-        }
-        &exports[export_idx]
+    let state = match ipc_state().read() {
+        Ok(s) => s,
+        Err(_) => return GluResult::err(GluStatus::Runtime, "ipc_state_poisoned"),
+    };
+    let meta = if export_idx >= state.exports.len() {
+        return GluResult::err(GluStatus::Runtime, "IPC export index out of range");
+    } else {
+        &state.exports[export_idx]
     };
     let arg_slice = unsafe { std::slice::from_raw_parts(args, argc) };
     let arg_tags = unsafe {
         std::slice::from_raw_parts(meta.sig.param_types, meta.sig.param_count)
     };
-    // Read the current caller for the CALL message.
-    // We use the C ABI to get it — but there's no getter. Use "python" as
-    // a fallback (the outer caller is conventionally "python").
-    // Actually, the CALL message's caller field is informational — Java
-    // ignores it. Rust has already done the link check before reaching here.
-    // So we just send "python" as a placeholder.
-    let caller = "python";
+    let caller_buf = crate::router::current_caller_bytes().unwrap_or_else(|| b"unknown".to_vec());
+    let caller = std::str::from_utf8(&caller_buf).unwrap_or("unknown");
     let msg = fctp::encode_call(
         &meta.module_name,
         &meta.function_name,
@@ -300,25 +293,25 @@ pub extern "C" fn glucore_register_process_module(
         return -3;
     }
 
-    let mut stream = unsafe { UnixStream::from_raw_fd(sock_fd) };
+    let mut stream = unsafe { crate::transport::IpcStream::from_raw_fd(sock_fd) };
     let mut len_arr = [0u8; 4];
     if stream.read_exact(&mut len_arr).is_err() {
         eprintln!("glucore: failed to read registration len from '{}'", module_name);
         return -4;
     }
-    std::mem::forget(stream);
+    stream.forget();
     let reg_len = u32::from_le_bytes(len_arr) as usize;
     if reg_len > 1024 * 1024 {
         eprintln!("glucore: registration message too large from '{}'", module_name);
         return -5;
     }
     let mut reg_data = vec![0u8; reg_len];
-    let mut stream = unsafe { UnixStream::from_raw_fd(sock_fd) };
+    let mut stream = unsafe { crate::transport::IpcStream::from_raw_fd(sock_fd) };
     if stream.read_exact(&mut reg_data).is_err() {
         eprintln!("glucore: failed to read registration body from '{}'", module_name);
         return -6;
     }
-    std::mem::forget(stream);
+    stream.forget();
 
     let reg = match parse_registration(&reg_data) {
         Ok(r) => r,
@@ -328,11 +321,17 @@ pub extern "C" fn glucore_register_process_module(
         }
     };
 
-    let base_idx = unsafe { IPC_EXPORTS.len() };
+    let mut state = match ipc_state().write() {
+        Ok(s) => s,
+        Err(_) => {
+            eprintln!("glucore: IPC state poisoned");
+            return -8;
+        }
+    };
+    let base_idx = state.exports.len();
     let mut entries: Vec<GluExportEntry> = Vec::new();
     let mut name_storage: Vec<CString> = Vec::new();
     for (i, (fn_name, sig)) in reg.exports.iter().enumerate() {
-        let export_idx = base_idx + i;
         let wrapper = get_ipc_wrapper();
         name_storage.push(CString::new(fn_name.as_str()).unwrap());
         let meta = IpcExportMeta {
@@ -341,7 +340,7 @@ pub extern "C" fn glucore_register_process_module(
             function_name: fn_name.clone(),
             sig: *sig,
         };
-        unsafe { IPC_EXPORTS.push(meta) };
+        state.exports.push(meta);
         entries.push(GluExportEntry {
             name: name_storage.last().unwrap().as_ptr(),
             wrapper,
@@ -358,18 +357,10 @@ pub extern "C" fn glucore_register_process_module(
         entries: entries.as_ptr(),
         count: entries.len(),
     };
-    unsafe { crate::handles::glucore_register_module(glu_mod) };
+    crate::handles::glucore_register_module(glu_mod);
 
-    unsafe {
-        IPC_MODULE_SOCKETS.push((
-            CString::new(module_name.as_str()).unwrap(),
-            sock_fd,
-        ));
-        IPC_MODULE_BASE_IDX.push((
-            CString::new(module_name.as_str()).unwrap(),
-            base_idx,
-        ));
-    }
+    state.module_sockets.insert(module_name.as_bytes().to_vec(), sock_fd);
+    state.module_base_idx.insert(module_name.as_bytes().to_vec(), base_idx);
 
     std::mem::forget(child);
     0
@@ -380,10 +371,10 @@ pub extern "C" fn glucore_register_process_module(
 fn connect_with_retry(path: &str, timeout_ms: u64, interval_ms: u64) -> i32 {
     let start = std::time::Instant::now();
     loop {
-        match UnixStream::connect(path) {
+        match crate::transport::IpcStream::connect(path) {
             Ok(s) => {
                 let fd = s.as_raw_fd();
-                std::mem::forget(s);
+                s.forget();
                 return fd;
             }
             Err(_) => {
@@ -399,30 +390,13 @@ fn connect_with_retry(path: &str, timeout_ms: u64, interval_ms: u64) -> i32 {
 // --- IPC module lookup helpers ---------------------------------------------
 
 #[cfg(unix)]
-static mut IPC_MODULE_SOCKETS: Vec<(CString, i32)> = Vec::new();
-#[cfg(unix)]
-static mut IPC_MODULE_BASE_IDX: Vec<(CString, usize)> = Vec::new();
-
-#[cfg(unix)]
 pub(crate) fn ipc_socket_for_module(module: &str) -> Option<i32> {
-    unsafe {
-        for (name, fd) in IPC_MODULE_SOCKETS.iter() {
-            if name.to_string_lossy() == module {
-                return Some(*fd);
-            }
-        }
-    }
-    None
+    let state = ipc_state().read().ok()?;
+    state.module_sockets.get(module.as_bytes()).copied()
 }
 
 #[cfg(unix)]
 pub(crate) fn ipc_base_idx_for_module(module: &str) -> Option<usize> {
-    unsafe {
-        for (name, idx) in IPC_MODULE_BASE_IDX.iter() {
-            if name.to_string_lossy() == module {
-                return Some(*idx);
-            }
-        }
-    }
-    None
+    let state = ipc_state().read().ok()?;
+    state.module_base_idx.get(module.as_bytes()).copied()
 }

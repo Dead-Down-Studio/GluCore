@@ -87,6 +87,8 @@ python3 tests/interop/task9_dod.py   # Three-language mesh test
   mismatches before the FFI boundary.
 - **IPC transport:** PROCESS modules (Java) communicate over Unix domain
   sockets with a binary wire protocol. Supports nested callbacks (Task 10).
+- **Versioned contract:** Runtime exports explicit ABI and wire-protocol
+  versions for adapter/process compatibility checks.
 - **Performance:** 4.7x overhead vs raw ctypes (down from 37x after
   optimization — see docs/07-performance.md).
 

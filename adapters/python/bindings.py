@@ -121,6 +121,18 @@ class GluCore:
         self._lib.glucore_get_signature.restype = GluSignatureFFI
         self._lib.glucore_set_caller_identity.argtypes = [ctypes.c_char_p]
         self._lib.glucore_set_caller_identity.restype = None
+        self._lib.glucore_abi_version_major.argtypes = []
+        self._lib.glucore_abi_version_major.restype = ctypes.c_uint16
+        self._lib.glucore_abi_version_minor.argtypes = []
+        self._lib.glucore_abi_version_minor.restype = ctypes.c_uint16
+        self._lib.glucore_abi_version_patch.argtypes = []
+        self._lib.glucore_abi_version_patch.restype = ctypes.c_uint16
+        self._lib.glucore_wire_version_major.argtypes = []
+        self._lib.glucore_wire_version_major.restype = ctypes.c_uint16
+        self._lib.glucore_wire_version_minor.argtypes = []
+        self._lib.glucore_wire_version_minor.restype = ctypes.c_uint16
+        self._lib.glucore_wire_version_patch.argtypes = []
+        self._lib.glucore_wire_version_patch.restype = ctypes.c_uint16
         self._lib.glucore_add_link.argtypes = [
             ctypes.c_char_p, ctypes.c_char_p,
         ]
@@ -172,6 +184,20 @@ class GluCore:
 
     def add_link(self, caller: str, callee: str) -> None:
         self._lib.glucore_add_link(caller.encode(), callee.encode())
+
+    def contract_versions(self) -> dict[str, tuple[int, int, int]]:
+        return {
+            "abi": (
+                int(self._lib.glucore_abi_version_major()),
+                int(self._lib.glucore_abi_version_minor()),
+                int(self._lib.glucore_abi_version_patch()),
+            ),
+            "wire": (
+                int(self._lib.glucore_wire_version_major()),
+                int(self._lib.glucore_wire_version_minor()),
+                int(self._lib.glucore_wire_version_patch()),
+            ),
+        }
 
     def call(self, module: str, function: str, args: list) -> GluResult:
         argc = len(args)

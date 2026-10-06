@@ -23,7 +23,7 @@ pub mod trace;
 
 // Re-export the transport abstraction module (Task 11).
 // On non-Unix platforms this compiles as a stub.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(unix)]
 mod transport;
 
 // Re-export the most-used types at the crate root so adapters can do
@@ -32,3 +32,38 @@ pub use types::*;
 pub use errors::glucore_free_buffer;
 pub use router::{glucore_call, glucore_set_caller_identity, glucore_add_link, call_as, CallerGuard};
 pub use handles::{glucore_register_module, glucore_get_signature, glucore_get_module_export_count, glucore_get_module_export_name};
+
+/// C ABI compatibility version for libglucore_core.
+pub const GLUCORE_ABI_VERSION_MAJOR: u16 = 1;
+pub const GLUCORE_ABI_VERSION_MINOR: u16 = 0;
+pub const GLUCORE_ABI_VERSION_PATCH: u16 = 0;
+
+#[no_mangle]
+pub extern "C" fn glucore_abi_version_major() -> u16 {
+    GLUCORE_ABI_VERSION_MAJOR
+}
+
+#[no_mangle]
+pub extern "C" fn glucore_abi_version_minor() -> u16 {
+    GLUCORE_ABI_VERSION_MINOR
+}
+
+#[no_mangle]
+pub extern "C" fn glucore_abi_version_patch() -> u16 {
+    GLUCORE_ABI_VERSION_PATCH
+}
+
+#[no_mangle]
+pub extern "C" fn glucore_wire_version_major() -> u16 {
+    fctp::WIRE_PROTOCOL_VERSION_MAJOR
+}
+
+#[no_mangle]
+pub extern "C" fn glucore_wire_version_minor() -> u16 {
+    fctp::WIRE_PROTOCOL_VERSION_MINOR
+}
+
+#[no_mangle]
+pub extern "C" fn glucore_wire_version_patch() -> u16 {
+    fctp::WIRE_PROTOCOL_VERSION_PATCH
+}
