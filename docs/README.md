@@ -19,6 +19,7 @@ through unrelated material.
 | [09-api-reference.md](09-api-reference.md) | Every public C ABI function exposed by libglucore_core |
 | [10-examples.md](10-examples.md) | Walk-throughs of every example and DoD test in scripts/ (incl. Task 10) |
 | [11-production-readiness.md](11-production-readiness.md) | Contract versioning, compatibility policy, support matrix |
+| [12-presentation.md](12-presentation.md) | Slide-style overview of GluCore's purpose, architecture, flows, and tradeoffs |
 
 ## Quick lookup
 
